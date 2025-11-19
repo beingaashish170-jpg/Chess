@@ -1,0 +1,603 @@
+/* Root Variables */
+:root {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #242424;
+    --bg-card: #2a2a2a;
+    --border-color: #3a3a3a;
+    --text-primary: #ffffff;
+    --text-secondary: #b3b3b3;
+    --accent-yellow: #ffd700;
+    --accent-green: #4caf50;
+    --accent-red: #f44336;
+}
+
+.home-page {
+    min-height: 100vh;
+    background: url("../assets/Logo.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    color: #fff;
+    padding-bottom: 60px;
+    opacity: 0.8;
+}
+
+/* Voice Status Bar */
+.voice-status-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(26, 26, 26, 0.95);
+    border-bottom: 1px solid #3a3a3a;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    backdrop-filter: blur(10px);
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.voice-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    color: #ffd700;
+    font-size: 0.9rem;
+}
+
+.voice-dot {
+    width: 8px;
+    height: 8px;
+    background: #ffd700;
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.8);
+    opacity: 0.5;
+}
+
+.voice-dot.pulsing {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+}
+
+.voice-transcript {
+    color: #e0e0e0;
+    font-size: 0.85rem;
+    padding: 5px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-style: italic;
+}
+
+/* Container */
+.home-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 40px 24px;
+}
+
+/* Header */
+.home-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+    gap: 20px;
+}
+
+.header-left {
+    flex: 1;
+}
+
+.home-title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.home-title::before {
+    content: "👑";
+    font-size: 1.8rem;
+}
+
+.home-subtitle {
+    color: #b3b3b3;
+    font-size: 0.95rem;
+    margin: 0;
+    font-weight: 400;
+}
+
+.voice-toggle-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid #3a3a3a;
+    background: #2a2a2a;
+    color: #ffd700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.voice-toggle-btn:hover {
+    background: #333;
+    border-color: #4a4a4a;
+    transform: translateY(-1px);
+}
+
+.voice-toggle-btn:active {
+    transform: translateY(0);
+}
+
+/* Main Grid */
+.home-grid {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 24px;
+    margin-bottom: 40px;
+}
+
+.grid-left {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.grid-right {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Choose Your Play Style Section */
+.play-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.play-modes h2 {
+    grid-column: 1 / -1;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #ffffff;
+}
+
+/* Play Style Cards - TRANSPARENT BACKGROUND */
+.playstyle {
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+}
+
+.playstyle:hover {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Voice variant - yellow accent */
+.playstyle.voice {
+    border-color: rgba(255, 215, 0, 0.3);
+}
+
+.playstyle.voice:hover {
+    border-color: rgba(255, 215, 0, 0.5);
+    box-shadow: 0 8px 24px rgba(255, 215, 0, 0.15);
+}
+
+.playstyle.voice .ps-ico {
+    background: #ffd700;
+    color: #1a1a1a;
+    border-radius: 12px;
+}
+
+.playstyle.voice .ps-badge {
+    background: rgba(255, 215, 0, 0.15);
+    color: #ffd700;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+/* Classic variant - red accent */
+.playstyle:not(.voice) {
+    border-color: rgba(244, 67, 54, 0.3);
+}
+
+.playstyle:not(.voice):hover {
+    border-color: rgba(244, 67, 54, 0.5);
+    box-shadow: 0 8px 24px rgba(244, 67, 54, 0.15);
+}
+
+.playstyle:not(.voice) .ps-ico {
+    background: #f44336;
+    color: #ffffff;
+    border-radius: 12px;
+}
+
+/* CTA Buttons */
+.ps-cta {
+    width: 100%;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-gold {
+    background: #ffd700;
+    color: #1a1a1a;
+}
+
+.btn-gold:hover {
+    background: #ffed4e;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.btn-dark {
+    background: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #3a3a3a;
+}
+
+.btn-dark:hover {
+    background: #333;
+    border-color: #4a4a4a;
+    transform: translateY(-1px);
+}
+
+/* Quick Stats - TRANSPARENT */
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+}
+
+.quick-stats h3 {
+    grid-column: 1 / -1;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #ffffff;
+}
+
+.stat-card {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.stat-card .icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.stat-card .value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 8px 0 4px;
+}
+
+.stat-card .label {
+    font-size: 0.85rem;
+    color: #b3b3b3;
+    font-weight: 500;
+}
+
+/* Panel base style - TRANSPARENT */
+.panel {
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s ease;
+}
+
+.panel:hover {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Stats Panel */
+.stats-panel {
+    padding: 20px !important;
+}
+
+.stats-panel .panel-head h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+/* Tournament/Leaderboard Promo - TRANSPARENT */
+.leaderboard-promo {
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.leaderboard-promo:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Voice Tip - TRANSPARENT with red left border */
+.voice-tip {
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 3px solid #f44336;
+}
+
+.voice-tip:hover {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: rgba(255, 255, 255, 0.2);
+    border-left: 3px solid #f44336;
+}
+
+.tip-head h3 {
+    color: #f44336;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* Recent Games Section - TRANSPARENT */
+.recent-section {
+    width: 100%;
+}
+
+.recent h3 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    color: #ffffff;
+}
+
+.rg-list {
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.rg-row {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 16px 20px;
+    transition: all 0.2s ease;
+}
+
+.rg-row:last-child {
+    border-bottom: none;
+}
+
+.rg-row:hover {
+    background: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* Responsive Design */
+@media (max-width: 1100px) {
+    .home-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .play-modes {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .home-container {
+        padding: 32px 20px;
+    }
+
+    .home-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .voice-toggle-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .home-title {
+        font-size: 1.75rem;
+    }
+
+    .home-subtitle {
+        font-size: 0.9rem;
+    }
+
+    .voice-status-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 560px) {
+    .home-container {
+        padding: 24px 16px;
+    }
+
+    .home-title {
+        font-size: 1.5rem;
+    }
+
+    .voice-toggle-btn {
+        padding: 10px 16px;
+        font-size: 0.85rem;
+    }
+
+    .quick-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+        padding: 16px;
+    }
+
+    .stat-card .value {
+        font-size: 1.5rem;
+    }
+}
+
+/* Add these styles to your existing HomePage.css */
+
+/* Header buttons container */
+.home-header .voice-toggle-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid #3a3a3a;
+    background: #2a2a2a;
+    color: #ffd700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.home-header .voice-toggle-btn:hover {
+    background: #333;
+    border-color: #4a4a4a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.home-header .voice-toggle-btn:active {
+    transform: translateY(0);
+}
+
+/* Commands button specific styling */
+.voice-toggle-btn[style*="transparent"] {
+    background: transparent !important;
+}
+
+.voice-toggle-btn[style*="transparent"]:hover {
+    background: rgba(255, 215, 0, 0.08) !important;
+    border-color: rgba(255, 215, 0, 0.5) !important;
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2) !important;
+}
+
+/* Animation keyframes for modal */
+@keyframes backIn {
+    from {
+        opacity: 0;
+        backdrop-filter: blur(0px);
+    }
+
+    to {
+        opacity: 1;
+        backdrop-filter: blur(4px);
+    }
+}
+
+@keyframes pop {
+    0% {
+        transform: translateY(20px) scale(0.92);
+        opacity: 0;
+    }
+
+    50% {
+        transform: translateY(-4px) scale(1.01);
+    }
+
+    100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+/* Responsive header buttons */
+@media (max-width: 900px) {
+    .home-header>div:last-child {
+        width: 100%;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .home-header .voice-toggle-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 560px) {
+    .home-header>div:last-child {
+        gap: 8px;
+    }
+
+    .voice-toggle-btn {
+        padding: 10px 16px;
+        font-size: 0.85rem;
+    }
+}

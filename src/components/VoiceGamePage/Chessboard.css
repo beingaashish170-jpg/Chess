@@ -1,0 +1,31 @@
+.chessboard-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 16px;
+    background: #1a1a1a;
+    border-radius: 8px;
+}
+
+.chessboard-wrapper>div {
+    display: flex;
+    justify-content: center;
+}
+
+/* Ensure pieces are not too large and board is responsive */
+.chessboard-wrapper .react-chessboard {
+    width: 100%;
+    max-width: 600px;
+    aspect-ratio: 1;
+}
+
+/* Smooth piece animations */
+.chessboard-wrapper .react-chessboard [data-piece] {
+    transition: transform 0.3s ease-in-out;
+}
+
+/* Highlight animations */
+.chessboard-wrapper .react-chessboard [data-square] {
+    transition: background 0.2s ease;
+}

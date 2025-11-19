@@ -1,0 +1,115 @@
+.voice-history {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    padding: 16px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #ddd;
+}
+
+.mic-icon {
+    font-size: 18px;
+}
+
+.live-badge {
+    background: #2a2a2a;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 10px;
+    color: #FECF03;
+    margin-left: auto;
+}
+
+.command-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.command-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px;
+    background: #0f0f0f;
+    border-radius: 8px;
+    border: 1px solid #2a2a2a;
+}
+
+.command-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #FECF03;
+    margin-top: 6px;
+    flex-shrink: 0;
+}
+
+.command-details {
+    flex: 1;
+}
+
+.command-text-display {
+    color: #fff;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.command-meta {
+    display: flex;
+    gap: 8px;
+    font-size: 11px;
+    color: #666;
+}
+
+.command-time {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-badge.executed {
+    background: #1a3a1a;
+    color: #4ade80;
+}
+
+.status-badge.processing {
+    background: #3a3a1a;
+    color: #FECF03;
+}
+
+.voice-history::-webkit-scrollbar {
+    width: 6px;
+}
+
+.voice-history::-webkit-scrollbar-track {
+    background: #0f0f0f;
+    border-radius: 3px;
+}
+
+.voice-history::-webkit-scrollbar-thumb {
+    background: #3a3a3a;
+    border-radius: 3px;
+}
+
+.voice-history::-webkit-scrollbar-thumb:hover {
+    background: #4a4a4a;
+}
