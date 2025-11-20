@@ -1,20 +1,33 @@
-import React, { useState, useEffect, useRef } from "react";
+/**
+ * VoiceGamePage.tsx
+ *
+ * Voice-enabled chess vs AI with:
+ * - chess.js game logic
+ * - Stockfish AI
+ * - Time controls + increment (from sessionStorage.gameConfig.time)
+ * - Web Speech API (STT + TTS) for voice commands + announcements
+ */
+
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Chess } from "chess.js";
+import { Chess, Move } from "chess.js";
 
 import Chessboard from "../components/VoiceGamePage/Chessboard";
 import GameHeader from "../components/VoiceGamePage/GameHeader";
-import ControlsBar from "../components/VoiceGamePage/ControlsBar";
-import OpponentCard from "../components/VoiceGamePage/OpponentCard";
-import PlayerCard from "../components/VoiceGamePage/PlayerCard";
-import MoveHistory from "../components/VoiceGamePage/MoveHistory";
 import VoiceStatusBar from "../components/VoiceGamePage/VoiceStatusBar";
-
-import { stockfishService } from "../utils/stockfishService";
-import voiceCommandService from "../utils/voiceCommandService";
-import speechService from "../utils/speechService";
+import VoiceHistory from "../components/VoiceGamePage/VoiceHistory";
+import QuickVoiceTips from "../components/VoiceGamePage/QuickVoiceTips";
+import MoveHistory from "../components/VoiceGamePage/MoveHistory";
+import PlayerCard from "../components/VoiceGamePage/PlayerCard";
+import OpponentCard from "../components/VoiceGamePage/OpponentCard";
+import ControlsBar from "../components/VoiceGamePage/ControlsBar";
+import DetectedCommandBanner from "../components/VoiceGamePage/DetectedCommandBanner";
 
 import "./VoiceGamePage.css";
+
+import speechService from "../utils/speechService";
+import { stockfishService } from "../utils/stockfishService";
+import type { StockfishMove } from "../utils/stockfishService";
 
 type GameStatus =
   | "playing"
@@ -24,222 +37,336 @@ type GameStatus =
   | "draw"
   | "timeout";
 
-interface Player {
+interface PlayerInfo {
   name: string;
   rating: number;
-  time: number;
+  time: number; // seconds remaining
   isAI?: boolean;
 }
 
-interface GameConfig {
-  mode: "voice" | "classic";
-  time: string; // e.g., "1+0", "3+2"
-  versus: "random" | "friends";
+interface VoiceCommandHistoryItem {
+  id: string;
+  text: string;
+  timestamp: Date;
+  status: "executed" | "processing" | "failed";
+}
+
+// Web Speech API types
+declare global {
+  interface Window {
+    webkitSpeechRecognition: any;
+    SpeechRecognition: any;
+  }
 }
 
 const VoiceGamePage: React.FC = () => {
   const navigate = useNavigate();
 
-  // Game state
+  // --- Chess game state ---
   const gameRef = useRef<Chess>(new Chess());
   const [gameFen, setGameFen] = useState<string>(gameRef.current.fen());
-  const [gameStatus, setGameStatus] = useState<GameStatus>("playing");
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
-  const [isAIThinking, setIsAIThinking] = useState(false);
+  const [gameStatus, setGameStatus] = useState<GameStatus>("playing");
 
-  // UI state
-  const [soundOn, setSoundOn] = useState(true);
+  // --- Time control state (seconds) ---
+  const [playerTime, setPlayerTime] = useState<number>(300);
+  const [opponentTime, setOpponentTime] = useState<number>(300);
+  const [incrementSeconds, setIncrementSeconds] = useState<number>(0);
+  const [timeLabel, setTimeLabel] = useState<string>("5+0");
+  const timerIntervalRef = useRef<number | null>(null);
+  const timeUpHandledRef = useRef<boolean>(false);
+
+  // --- UI / players ---
   const [boardOrientation, setBoardOrientation] = useState<"white" | "black">(
     "white"
   );
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [currentTranscript, setCurrentTranscript] = useState("");
-  const [detectedCommand, setDetectedCommand] = useState("");
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
-  // Time control state
-  const [playerTime, setPlayerTime] = useState(300); // in seconds
-  const [opponentTime, setOpponentTime] = useState(300);
-  const [timeControl, setTimeControl] = useState<{
-    base: number;
-    increment: number;
-  }>({
-    base: 300,
-    increment: 0,
+  const [player, setPlayer] = useState<PlayerInfo>({
+    name: "You",
+    rating: 1847,
+    time: playerTime,
   });
 
-  // Players
-  const [opponent] = useState<Player>({
-    name: "Stockfish AI",
-    rating: 1923,
-    time: 300,
+  const [opponent, setOpponent] = useState<PlayerInfo>({
+    name: "Chess4Everyone AI",
+    rating: 1900,
+    time: opponentTime,
     isAI: true,
   });
 
-  const [player] = useState<Player>({
-    name: "You",
-    rating: 1847,
-    time: 300,
-  });
+  // --- AI state ---
+  const [isAIThinking, setIsAIThinking] = useState<boolean>(false);
+  const aiTimeoutRef = useRef<number | null>(null);
 
-  // Refs
-  const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const playerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const opponentTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // --- Voice recognition state ---
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [, setCurrentTranscript] = useState<string>(""); // we only need the setter
+  const [detectedCommand, setDetectedCommand] = useState<string | null>(null);
+  const [voiceProgress, setVoiceProgress] = useState<number>(100);
+  const recognitionRef = useRef<any | null>(null);
 
-  // Parse time control from session storage
+  // --- Voice command history ---
+  const [commandHistory, setCommandHistory] = useState<
+    VoiceCommandHistoryItem[]
+  >([]);
+
+  // Player is white, AI is black
+  const playerColor: "w" = "w";
+  const aiColor: "b" = "b";
+
+  // -----------------------------------------------------
+  // Time control: parse "5+3", "1+0", "0.5+0", "10+5"
+  // X+Y => X minutes base, Y *seconds* increment
+  // -----------------------------------------------------
+  const parseTimeControl = (tc: string | null | undefined) => {
+    if (!tc) {
+      return { baseSeconds: 300, incSeconds: 0, label: "5+0" };
+    }
+
+    const parts = String(tc).split("+");
+    const baseMins = parseFloat(parts[0] || "5");
+    const incSecs = parseFloat(parts[1] || "0");
+    const baseSecs = Math.round(baseMins * 60);
+
+    return {
+      baseSeconds: baseSecs,
+      incSeconds: Math.round(incSecs),
+      label: tc,
+    };
+  };
+
+  // -----------------------------------------------------
+  // Convert SAN -> speech, e.g. "Nf3" -> "Knight to f3"
+  // -----------------------------------------------------
+  const sanToSpeech = (san: string): string => {
+    const clean = san.replace(/[+#]/g, "");
+    if (clean === "O-O") return "castle kingside";
+    if (clean === "O-O-O") return "castle queenside";
+
+    const sanRegex = /([KQRBN])?([a-h]?[1-8]?x?)?([a-h][1-8])/;
+    const match = clean.match(sanRegex);
+    if (!match) return san;
+
+    const pieceLetter = match[1] || "";
+    const target = match[3];
+    const file = target[0];
+    const rank = target[1];
+
+    const pieceNameMap: Record<string, string> = {
+      K: "King",
+      Q: "Queen",
+      R: "Rook",
+      B: "Bishop",
+      N: "Knight",
+    };
+
+    if (!pieceLetter) return `Pawn to ${file}${rank}`;
+
+    const pieceName = pieceNameMap[pieceLetter] || pieceLetter;
+    return `${pieceName} to ${file}${rank}`;
+  };
+
+  // -----------------------------------------------------
+  // Voice: parse transcript into chess move
+  // Supports: "e4", "play e4", "knight to f3", "bishop takes c4",
+  // "castle kingside", "castle queenside"
+  // -----------------------------------------------------
+  const parseVoiceMove = (
+    transcript: string,
+    game: Chess
+  ): { from: string; to: string; promotion?: string } | null => {
+    const text = transcript
+      .toLowerCase()
+      .replace(/play\s+/, "")
+      .trim();
+
+    // Castling
+    if (text.includes("castle kingside") || text.includes("short castle")) {
+      const castleMove = (game.moves({ verbose: true }) as Move[]).find(
+        (m) => m.san === "O-O"
+      );
+      if (castleMove) {
+        return {
+          from: castleMove.from,
+          to: castleMove.to,
+          promotion: castleMove.promotion,
+        };
+      }
+    }
+
+    if (text.includes("castle queenside") || text.includes("long castle")) {
+      const castleMove = (game.moves({ verbose: true }) as Move[]).find(
+        (m) => m.san === "O-O-O"
+      );
+      if (castleMove) {
+        return {
+          from: castleMove.from,
+          to: castleMove.to,
+          promotion: castleMove.promotion,
+        };
+      }
+    }
+
+    // Extract squares mentioned
+    const squareMatches = text.match(/([a-h][1-8])/g);
+    const targetSquare =
+      squareMatches && squareMatches.length > 0
+        ? squareMatches[squareMatches.length - 1]
+        : null;
+    if (!targetSquare) return null;
+
+    const legalMoves = game.moves({ verbose: true }) as Move[];
+
+    // Which piece type?
+    let desiredPiece: "p" | "n" | "b" | "r" | "q" | "k" | null = null;
+    if (text.includes("knight")) desiredPiece = "n";
+    else if (text.includes("bishop")) desiredPiece = "b";
+    else if (text.includes("rook")) desiredPiece = "r";
+    else if (text.includes("queen")) desiredPiece = "q";
+    else if (text.includes("king")) desiredPiece = "k";
+
+    let candidateMoves = legalMoves.filter((m) => m.to === targetSquare);
+
+    if (desiredPiece) {
+      candidateMoves = candidateMoves.filter((m) => m.piece === desiredPiece);
+    }
+
+    if (candidateMoves.length === 1) {
+      const m = candidateMoves[0];
+      return {
+        from: m.from,
+        to: m.to,
+        promotion: m.promotion || "q",
+      };
+    }
+
+    // Disambiguation using origin square, if spoken
+    if (
+      candidateMoves.length > 1 &&
+      squareMatches &&
+      squareMatches.length >= 2
+    ) {
+      const fromHint = squareMatches[0];
+      const disamb = candidateMoves.find((m) => m.from === fromHint);
+      if (disamb) {
+        return {
+          from: disamb.from,
+          to: disamb.to,
+          promotion: disamb.promotion || "q",
+        };
+      }
+    }
+
+    return null;
+  };
+
+  // -----------------------------------------------------
+  // Init gameConfig + Stockfish on mount
+  // -----------------------------------------------------
   useEffect(() => {
-    const gameConfigStr = sessionStorage.getItem("gameConfig");
-    if (gameConfigStr) {
+    const storedConfig = sessionStorage.getItem("gameConfig");
+    if (storedConfig) {
       try {
-        const config: GameConfig = JSON.parse(gameConfigStr);
-        const [base, increment] = config.time.split("+").map(Number);
-        const baseSeconds = base * 60;
-        const incrementSeconds = increment * 60;
-
-        setTimeControl({ base: baseSeconds, increment: incrementSeconds });
+        const config = JSON.parse(storedConfig);
+        const { baseSeconds, incSeconds, label } = parseTimeControl(
+          config.time
+        );
         setPlayerTime(baseSeconds);
         setOpponentTime(baseSeconds);
+        setIncrementSeconds(incSeconds);
+        setTimeLabel(label);
       } catch (e) {
-        console.error("Error parsing game config:", e);
+        console.warn("Failed to parse gameConfig, using 5+0", e);
       }
     }
-  }, []);
 
-  // Initialize Stockfish
-  useEffect(() => {
-    const initEngine = async () => {
-      try {
-        await stockfishService.initialize();
-        console.log("Stockfish ready");
-      } catch (e) {
-        console.error("Error initializing Stockfish:", e);
-      }
-    };
-    initEngine();
+    stockfishService
+      .initialize()
+      .then(() => console.log("✅ Stockfish initialized"))
+      .catch((e) => console.warn("Stockfish init error:", e));
 
     return () => {
+      if (timerIntervalRef.current) {
+        window.clearInterval(timerIntervalRef.current);
+      }
+      if (aiTimeoutRef.current) {
+        window.clearTimeout(aiTimeoutRef.current);
+      }
       stockfishService.terminate();
-      if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
-      if (playerTimerRef.current) clearInterval(playerTimerRef.current);
-      if (opponentTimerRef.current) clearInterval(opponentTimerRef.current);
     };
   }, []);
 
-  // Start player timer when it's their turn
+  // Keep PlayerInfo time fields in sync
   useEffect(() => {
-    if (
-      gameRef.current.turn() === "w" &&
-      !isAIThinking &&
-      !gameRef.current.isGameOver()
-    ) {
-      // Player's turn - start player timer
-      if (playerTimerRef.current) clearInterval(playerTimerRef.current);
-      if (opponentTimerRef.current) clearInterval(opponentTimerRef.current);
+    setPlayer((p) => ({ ...p, time: playerTime }));
+  }, [playerTime]);
 
-      playerTimerRef.current = setInterval(() => {
+  useEffect(() => {
+    setOpponent((p) => ({ ...p, time: opponentTime }));
+  }, [opponentTime]);
+
+  // -----------------------------------------------------
+  // Timer effect
+  // -----------------------------------------------------
+  useEffect(() => {
+    if (gameStatus !== "playing") {
+      if (timerIntervalRef.current) {
+        window.clearInterval(timerIntervalRef.current);
+      }
+      return;
+    }
+
+    timeUpHandledRef.current = false;
+
+    timerIntervalRef.current = window.setInterval(() => {
+      const turn = gameRef.current.turn(); // "w" | "b"
+
+      if (turn === playerColor) {
         setPlayerTime((prev) => {
-          const newTime = prev - 1;
-          if (newTime <= 0) {
-            handleTimeUp("player");
+          if (prev <= 1) {
+            if (!timeUpHandledRef.current) {
+              timeUpHandledRef.current = true;
+              handleTimeUp("white");
+            }
             return 0;
           }
-          return newTime;
+          return prev - 1;
         });
-      }, 1000);
-    } else if (
-      gameRef.current.turn() === "b" &&
-      !gameRef.current.isGameOver()
-    ) {
-      // AI's turn - start opponent timer
-      if (playerTimerRef.current) clearInterval(playerTimerRef.current);
-      if (opponentTimerRef.current) clearInterval(opponentTimerRef.current);
-
-      opponentTimerRef.current = setInterval(() => {
+      } else {
         setOpponentTime((prev) => {
-          const newTime = prev - 1;
-          if (newTime <= 0) {
-            handleTimeUp("opponent");
+          if (prev <= 1) {
+            if (!timeUpHandledRef.current) {
+              timeUpHandledRef.current = true;
+              handleTimeUp("black");
+            }
             return 0;
           }
-          return newTime;
+          return prev - 1;
         });
-      }, 1000);
-    }
+      }
+    }, 1000);
 
     return () => {
-      if (playerTimerRef.current) clearInterval(playerTimerRef.current);
-      if (opponentTimerRef.current) clearInterval(opponentTimerRef.current);
+      if (timerIntervalRef.current) {
+        window.clearInterval(timerIntervalRef.current);
+      }
     };
-  }, [isAIThinking, gameStatus]);
+  }, [gameStatus]);
 
-  // Initialize voice recognition
-  useEffect(() => {
-    if (!voiceCommandService.isActive()) {
-      startVoiceListening();
-    }
-
-    return () => {
-      voiceCommandService.stopListening();
-    };
-  }, []);
-
-  const startVoiceListening = () => {
-    voiceCommandService.startListening({
-      continuous: true,
-      interimResults: true,
-      language: "en-US",
-      onListeningStart: () => {
-        setIsVoiceActive(true);
-      },
-      onListeningStop: () => {
-        setIsVoiceActive(false);
-      },
-      onError: (error) => {
-        console.error("Voice error:", error);
-      },
-      onCommand: handleVoiceCommand,
-      onTranscript: (transcript, isFinal) => {
-        setCurrentTranscript(transcript);
-        if (isFinal) {
-          setTimeout(() => setCurrentTranscript(""), 2000);
-        }
-      },
-    });
-  };
-
-  const handleTimeUp = (player: "player" | "opponent") => {
-    if (playerTimerRef.current) clearInterval(playerTimerRef.current);
-    if (opponentTimerRef.current) clearInterval(opponentTimerRef.current);
-
+  const handleTimeUp = async (side: "white" | "black") => {
     setGameStatus("timeout");
-    const winner = player === "player" ? "opponent" : "player";
-    const winnerName = winner === "opponent" ? "Stockfish AI" : "You";
-    const loserName = player === "player" ? "You" : "Stockfish AI";
+    if (timerIntervalRef.current) {
+      window.clearInterval(timerIntervalRef.current);
+    }
 
-    const message = `Time's up! ${loserName} ran out of time. ${winnerName} wins!`;
-    speakMessage(message);
-  };
+    const message =
+      side === "white"
+        ? "Time is up. Black wins by timeout."
+        : "Time is up. White wins by timeout.";
 
-  const updateGameStatus = (game: Chess) => {
-    if (game.isCheckmate()) setGameStatus("checkmate");
-    else if (game.isStalemate()) setGameStatus("stalemate");
-    else if (game.isDraw()) setGameStatus("draw");
-    else if (game.isCheck()) setGameStatus("check");
-    else setGameStatus("playing");
-  };
-
-  const getStatusText = () => {
-    if (gameStatus === "timeout") return "⏰ Time's up!";
-    if (isAIThinking) return "🤖 AI is thinking...";
-    if (gameStatus === "checkmate") return "👑 Checkmate!";
-    if (gameStatus === "stalemate") return "⚖️ Stalemate";
-    if (gameStatus === "draw") return "🤝 Draw";
-    if (gameStatus === "check") return "⚠️ Check!";
-    return gameRef.current.turn() === "w" ? "👤 Your turn" : "🤖 AI's turn";
-  };
-
-  const speakMessage = async (message: string) => {
-    if (soundOn && speechService.isSupportedBrowser()) {
+    if (soundEnabled && speechService.isSupportedBrowser()) {
       try {
         await speechService.speak({
           text: message,
@@ -247,344 +374,473 @@ const VoiceGamePage: React.FC = () => {
           volume: 0.9,
         });
       } catch (e) {
-        console.warn("Speech failed:", e);
+        console.warn("Failed to speak timeout message:", e);
       }
     }
   };
 
-  // Parse voice command for moves
-  const parseVoiceMove = (
-    transcript: string
-  ): { from: string; to: string } | null => {
-    const text = transcript.toLowerCase().trim();
+  // -----------------------------------------------------
+  // Apply a move (player or AI)
+  // -----------------------------------------------------
+  const applyMove = async (
+    from: string,
+    to: string,
+    by: "player" | "ai",
+    promotion: string = "q"
+  ): Promise<boolean> => {
+    if (gameStatus !== "playing") return false;
 
-    // Piece names mapping
-    const pieceMap: { [key: string]: string } = {
-      knight: "n",
-      bishop: "b",
-      rook: "r",
-      queen: "q",
-      king: "k",
-      pawn: "p",
-    };
-
-    // Square names
-    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
-    const ranks = ["1", "2", "3", "4", "5", "6", "7", "8"];
-
-    // Pattern: "knight to e5", "e4", "bishop takes c6", "castle kingside"
-    let from: string | null = null;
-    let to: string | null = null;
-
-    // Handle castling
-    if (text.includes("castle") || text.includes("castling")) {
-      if (text.includes("kingside") || text.includes("king side")) {
-        const game = new Chess(gameRef.current.fen());
-        const moves = game.moves({ verbose: true });
-        const castleMove = moves.find((m) => m.san === "O-O");
-        if (castleMove) {
-          return { from: castleMove.from, to: castleMove.to };
-        }
-      } else if (text.includes("queenside") || text.includes("queen side")) {
-        const game = new Chess(gameRef.current.fen());
-        const moves = game.moves({ verbose: true });
-        const castleMove = moves.find((m) => m.san === "O-O-O");
-        if (castleMove) {
-          return { from: castleMove.from, to: castleMove.to };
-        }
-      }
-      return null;
-    }
-
-    // Extract squares from text
-    const squarePattern = /([a-h][1-8])/g;
-    const squares = text.match(squarePattern) || [];
-
-    if (squares.length >= 2) {
-      from = squares[0];
-      to = squares[1];
-    } else if (squares.length === 1) {
-      // Try to find piece and destination
-      to = squares[0];
-
-      // Look for piece name
-      for (const [piece, symbol] of Object.entries(pieceMap)) {
-        if (text.includes(piece)) {
-          // Find all pieces of this type that can move to destination
-          const game = new Chess(gameRef.current.fen());
-          const moves = game.moves({ verbose: true });
-          const validMoves = moves.filter(
-            (m) => m.piece === symbol && m.to === to
-          );
-
-          if (validMoves.length === 1) {
-            from = validMoves[0].from;
-            break;
-          } else if (validMoves.length > 1) {
-            // Ambiguous - try to disambiguate from text
-            for (const move of validMoves) {
-              if (text.includes(move.from)) {
-                from = move.from;
-                break;
-              }
-            }
-            if (!from) from = validMoves[0].from;
-          }
-        }
-      }
-    }
-
-    if (from && to) {
-      return { from, to };
-    }
-
-    return null;
-  };
-
-  const handleVoiceCommand = async (command: any) => {
-    console.log("Voice command:", command);
-
-    // Try to parse as a move
-    const moveAttempt = parseVoiceMove(command.originalText);
-
-    if (moveAttempt) {
-      setDetectedCommand(`"${command.originalText}"`);
-      setTimeout(() => setDetectedCommand(""), 3000);
-
-      makePlayerMove(moveAttempt.from, moveAttempt.to);
-    }
-  };
-
-  // --------- PLAYER MOVE ----------
-  const makePlayerMove = (from: string, to: string, promotion?: string) => {
-    if (
-      gameRef.current.turn() !== "w" ||
-      isAIThinking ||
-      gameRef.current.isGameOver()
-    ) {
-      return;
-    }
-
-    console.log("Player tries:", from, "->", to);
-
-    const game = new Chess(gameRef.current.fen());
-    const move = game.move({
-      from,
-      to,
-      promotion: promotion || "q",
-    });
+    const clone = new Chess(gameRef.current.fen());
+    const move = clone.move({ from, to, promotion });
 
     if (!move) {
-      console.warn("Invalid player move");
-      speakMessage("That is an illegal move. Please say another legal move.");
-      return;
-    }
-
-    console.log("Player move SAN:", move.san);
-
-    // Add increment to player time
-    setPlayerTime((prev) => prev + timeControl.increment);
-
-    gameRef.current = game;
-    setGameFen(game.fen());
-    setMoveHistory((prev) => [...prev, move.san]);
-    updateGameStatus(game);
-
-    // Announce move
-    speakMessage(`You played ${move.san}`);
-
-    if (game.isGameOver()) {
-      if (game.isCheckmate()) {
-        speakMessage("Checkmate! You win!");
-      } else if (game.isStalemate()) {
-        speakMessage("Stalemate! The game is a draw.");
-      } else if (game.isDraw()) {
-        speakMessage("Draw!");
+      if (
+        by === "player" &&
+        soundEnabled &&
+        speechService.isSupportedBrowser()
+      ) {
+        try {
+          await speechService.speak({
+            text: "That move is illegal. Please say another legal move.",
+            rate: 1.0,
+            volume: 0.9,
+          });
+        } catch (e) {
+          console.warn("Failed to speak illegal move:", e);
+        }
       }
-      setIsAIThinking(false);
-      return;
+      return false;
     }
+
+    // increment
+    if (incrementSeconds > 0) {
+      if (by === "player") {
+        setPlayerTime((t) => t + incrementSeconds);
+      } else {
+        setOpponentTime((t) => t + incrementSeconds);
+      }
+    }
+
+    gameRef.current = clone;
+    setGameFen(clone.fen());
+    setMoveHistory((prev) => [...prev, move.san]);
+
+    if (soundEnabled && speechService.isSupportedBrowser()) {
+      const moveSpeech = sanToSpeech(move.san);
+      const prefix = by === "player" ? "You played" : "Opponent played";
+      try {
+        await speechService.speak({
+          text: `${prefix} ${moveSpeech}`,
+          rate: 1.0,
+          volume: 0.9,
+        });
+      } catch (e) {
+        console.warn("Failed to speak move:", e);
+      }
+    }
+
+    if (clone.isCheckmate()) {
+      setGameStatus("checkmate");
+      const winner =
+        clone.turn() === "w"
+          ? "black wins by checkmate"
+          : "white wins by checkmate";
+      if (soundEnabled && speechService.isSupportedBrowser()) {
+        try {
+          await speechService.speak({
+            text: `Checkmate, ${winner}.`,
+            rate: 1.0,
+            volume: 0.9,
+          });
+        } catch (e) {
+          console.warn("Failed to speak checkmate:", e);
+        }
+      }
+    } else if (clone.isStalemate()) {
+      setGameStatus("stalemate");
+      if (soundEnabled && speechService.isSupportedBrowser()) {
+        try {
+          await speechService.speak({
+            text: "The game is a stalemate.",
+            rate: 1.0,
+            volume: 0.9,
+          });
+        } catch (e) {
+          console.warn("Failed to speak stalemate:", e);
+        }
+      }
+    } else if (clone.isDraw()) {
+      setGameStatus("draw");
+      if (soundEnabled && speechService.isSupportedBrowser()) {
+        try {
+          await speechService.speak({
+            text: "The game is a draw.",
+            rate: 1.0,
+            volume: 0.9,
+          });
+        } catch (e) {
+          console.warn("Failed to speak draw:", e);
+        }
+      }
+    } else if (clone.inCheck()) {
+      setGameStatus("check");
+      if (soundEnabled && speechService.isSupportedBrowser()) {
+        try {
+          await speechService.speak({
+            text: "Check.",
+            rate: 1.0,
+            volume: 0.9,
+          });
+        } catch (e) {
+          console.warn("Failed to speak check:", e);
+        }
+      }
+    } else {
+      setGameStatus("playing");
+    }
+
+    return true;
+  };
+
+  // Player move via board
+  const handleBoardMove = async (
+    from: string,
+    to: string,
+    promotion?: string
+  ) => {
+    if (gameRef.current.turn() !== playerColor) return false;
+    const success = await applyMove(from, to, "player", promotion || "q");
+    if (!success) return false;
+    triggerAIMove();
+    return true;
+  };
+
+  // -----------------------------------------------------
+  // Trigger AI move (Stockfish or random)
+  // -----------------------------------------------------
+  const triggerAIMove = async () => {
+    if (gameStatus !== "playing") return;
+    if (gameRef.current.turn() !== aiColor) return;
 
     setIsAIThinking(true);
-    if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
-    aiTimeoutRef.current = setTimeout(() => {
-      makeAIMove();
-    }, 700);
-  };
 
-  // --------- AI MOVE ----------
-  const makeAIMove = async () => {
-    try {
-      const game = new Chess(gameRef.current.fen());
-      const fen = game.fen();
-      console.log("AI thinking from FEN:", fen);
+    aiTimeoutRef.current = window.setTimeout(async () => {
+      let aiMove: StockfishMove | null = null;
 
-      const bestMove = await stockfishService.getBestMove(fen, 8);
-
-      if (!bestMove) {
-        console.warn("No best move, using random");
-        makeRandomAIMove();
-        return;
+      try {
+        aiMove = await stockfishService.getBestMove(gameRef.current.fen(), 8);
+      } catch (e) {
+        console.warn("Stockfish getBestMove error:", e);
       }
 
-      const move = game.move({
-        from: bestMove.from,
-        to: bestMove.to,
-        promotion: bestMove.promotion || "q",
-      });
-
-      if (!move) {
-        console.warn("Engine move invalid, using random");
-        makeRandomAIMove();
-        return;
-      }
-
-      console.log("AI move SAN:", move.san);
-
-      // Add increment to opponent time
-      setOpponentTime((prev) => prev + timeControl.increment);
-
-      gameRef.current = game;
-      setGameFen(game.fen());
-      setMoveHistory((prev) => [...prev, move.san]);
-      updateGameStatus(game);
-
-      // Announce AI move
-      speakMessage(`Opponent played ${move.san}`);
-
-      if (game.isGameOver()) {
-        if (game.isCheckmate()) {
-          speakMessage("Checkmate! Opponent wins!");
-        } else if (game.isStalemate()) {
-          speakMessage("Stalemate! The game is a draw.");
-        } else if (game.isDraw()) {
-          speakMessage("Draw!");
+      if (!aiMove) {
+        const moves = gameRef.current.moves({ verbose: true }) as Move[];
+        if (moves.length === 0) {
+          setIsAIThinking(false);
+          return;
         }
-        setIsAIThinking(false);
-        return;
+        const random = moves[Math.floor(Math.random() * moves.length)];
+        aiMove = {
+          from: random.from,
+          to: random.to,
+          promotion: random.promotion,
+        };
       }
 
+      await applyMove(aiMove.from, aiMove.to, "ai", aiMove.promotion || "q");
       setIsAIThinking(false);
-    } catch (e) {
-      console.error("AI move error:", e);
-      makeRandomAIMove();
-    }
+    }, 600);
   };
 
-  const makeRandomAIMove = () => {
-    const game = new Chess(gameRef.current.fen());
-    const moves = game.moves({ verbose: true });
+  // -----------------------------------------------------
+  // Voice recognition setup
+  // -----------------------------------------------------
+  const initRecognition = () => {
+    if (recognitionRef.current) return;
 
-    if (moves.length === 0) {
-      updateGameStatus(game);
-      setIsAIThinking(false);
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      console.warn("SpeechRecognition not supported.");
       return;
     }
 
-    const randomMove = moves[Math.floor(Math.random() * moves.length)];
-    const move = game.move(randomMove);
-    if (move) {
-      console.log("AI random move SAN:", move.san);
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
 
-      // Add increment to opponent time
-      setOpponentTime((prev) => prev + timeControl.increment);
+    recognition.onstart = () => {
+      setIsListening(true);
+      setVoiceProgress(100);
+    };
 
-      gameRef.current = game;
-      setGameFen(game.fen());
-      setMoveHistory((prev) => [...prev, move.san]);
-      updateGameStatus(game);
+    recognition.onend = () => {
+      setIsListening(false);
+      if (voiceEnabled && gameStatus === "playing") {
+        try {
+          recognition.start();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
 
-      speakMessage(`Opponent played ${move.san}`);
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+    };
+
+    recognition.onresult = (event: any) => {
+      let interim = "";
+      let final = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const transcript = result[0].transcript;
+        if (result.isFinal) {
+          final += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+
+      if (interim) {
+        setCurrentTranscript(interim);
+      }
+
+      if (final) {
+        const text = final.trim();
+        setCurrentTranscript("");
+        setDetectedCommand(text);
+
+        const newItem: VoiceCommandHistoryItem = {
+          id: Date.now().toString(),
+          text,
+          timestamp: new Date(),
+          status: "processing",
+        };
+
+        setCommandHistory((prev) => [newItem, ...prev]);
+        handleVoiceCommand(text, newItem.id);
+      }
+    };
+
+    recognitionRef.current = recognition;
+  };
+
+  const startListening = () => {
+    if (!voiceEnabled) return;
+    initRecognition();
+    const rec = recognitionRef.current;
+    if (!rec) return;
+    try {
+      rec.start();
+    } catch {
+      /* already started */
+    }
+  };
+
+  const stopListening = () => {
+    const rec = recognitionRef.current;
+    if (!rec) return;
+    try {
+      rec.stop();
+    } catch {
+      /* ignore */
+    }
+    setIsListening(false);
+  };
+
+  // start/cleanup listening
+  useEffect(() => {
+    if (voiceEnabled) {
+      startListening();
+    }
+    return () => {
+      stopListening();
+      speechService.stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleToggleVoice = () => {
+    if (voiceEnabled) {
+      setVoiceEnabled(false);
+      stopListening();
+      speechService.stop();
+    } else {
+      setVoiceEnabled(true);
+      startListening();
+    }
+  };
+
+  // -----------------------------------------------------
+  // Voice commands: update history status
+  // -----------------------------------------------------
+  const updateCommandStatus = (
+    id: string,
+    status: VoiceCommandHistoryItem["status"]
+  ) => {
+    setCommandHistory((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, status } : c))
+    );
+  };
+
+  const handleVoiceCommand = async (text: string, historyId: string) => {
+    const lower = text.toLowerCase();
+
+    // simple control commands
+    if (lower.includes("stop listening") || lower.includes("pause voice")) {
+      updateCommandStatus(historyId, "executed");
+      handleToggleVoice();
+      return;
     }
 
-    setIsAIThinking(false);
+    if (lower.includes("flip board")) {
+      setBoardOrientation((o) => (o === "white" ? "black" : "white"));
+      updateCommandStatus(historyId, "executed");
+      return;
+    }
+
+    // treat as move
+    const move = parseVoiceMove(lower, gameRef.current);
+    if (!move) {
+      updateCommandStatus(historyId, "failed");
+      if (soundEnabled && speechService.isSupportedBrowser()) {
+        try {
+          await speechService.speak({
+            text: "I could not detect a legal chess move. Please try again.",
+            rate: 1.0,
+            volume: 0.9,
+          });
+        } catch (e) {
+          console.warn("Failed to speak no-move message:", e);
+        }
+      }
+      return;
+    }
+
+    const success = await applyMove(
+      move.from,
+      move.to,
+      "player",
+      move.promotion || "q"
+    );
+    if (!success) {
+      updateCommandStatus(historyId, "failed");
+      return;
+    }
+
+    updateCommandStatus(historyId, "executed");
+    triggerAIMove();
   };
 
-  // --------- UNDO ----------
+  // -----------------------------------------------------
+  // UI helpers
+  // -----------------------------------------------------
+  const handleFlipBoard = () => {
+    setBoardOrientation((o) => (o === "white" ? "black" : "white"));
+  };
+
+  const handleToggleSound = () => {
+    setSoundEnabled((s) => !s);
+    if (soundEnabled) {
+      speechService.stop();
+    }
+  };
+
   const handleUndo = () => {
-    const game = new Chess(gameRef.current.fen());
-    if (game.history().length === 0) return;
-
-    // Undo AI move (if there is one)
-    game.undo();
-    // Undo player move (if there is one)
-    if (game.history().length > 0) game.undo();
-
-    gameRef.current = game;
+    const game = gameRef.current;
+    const undone = game.undo();
+    if (!undone) return;
+    setMoveHistory((prev) => prev.slice(0, -1));
     setGameFen(game.fen());
-    setMoveHistory((prev) => prev.slice(0, -2));
-    updateGameStatus(game);
-    setIsAIThinking(false);
-    if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
+    setGameStatus("playing");
   };
 
-  // --------- BOARD DISABLED LOGIC ----------
-  const isBoardDisabled =
-    isAIThinking ||
-    gameRef.current.isGameOver() ||
-    gameRef.current.turn() !== "w" ||
-    gameStatus === "timeout";
+  const handleBack = () => {
+    speechService.stop();
+    stopListening();
+    sessionStorage.removeItem("gameConfig");
+    navigate("/home");
+  };
+
+  const getStatusText = () => {
+    switch (gameStatus) {
+      case "playing":
+        return "Speak moves like “Knight to F3” or click squares.";
+      case "check":
+        return "Check! Defend your king.";
+      case "checkmate":
+        return "Checkmate. Game over.";
+      case "stalemate":
+        return "Stalemate. Nobody wins.";
+      case "draw":
+        return "Drawn game.";
+      case "timeout":
+        return "Game over by time.";
+      default:
+        return "";
+    }
+  };
 
   return (
     <div className="voice-game-page">
-      <GameHeader
-        onBack={() => {
-          sessionStorage.removeItem("gameConfig");
-          navigate("/home");
-        }}
-      />
+      <GameHeader onBack={handleBack} />
 
-      {isVoiceActive && (
-        <VoiceStatusBar
-          transcript={currentTranscript}
-          detectedCommand={detectedCommand}
-        />
-      )}
-
-      <div className="game-title-bar">
-        <h2 className="game-title">🎤 Voice Chess Game</h2>
-        <p className="game-subtitle">{getStatusText()}</p>
-      </div>
-
-      <div className="main-content">
+      <div className="game-layout">
+        {/* LEFT */}
         <div className="left-section">
-          <div className="board-container">
-            <div className="chessboard-area">
+          <div className="voice-mode-card">
+            <div className="voice-mode-header">
+              <span className="mode-pill">🎤 Voice Mode Active</span>
+              <span className="mode-tag">⏱ {timeLabel}</span>
+            </div>
+            <p className="voice-mode-subtitle">{getStatusText()}</p>
+
+            <VoiceStatusBar
+              isActive={voiceEnabled && isListening}
+              onToggle={handleToggleVoice}
+              progress={voiceProgress}
+              isAIThinking={isAIThinking}
+            />
+          </div>
+
+          <div className="board-card">
+            <div className="board-inner">
               <Chessboard
                 gameFen={gameFen}
-                onMove={makePlayerMove}
+                onMove={handleBoardMove}
                 boardOrientation={boardOrientation}
-                disabled={isBoardDisabled}
+                disabled={gameStatus !== "playing" || isAIThinking}
               />
             </div>
+            <div className="controls-row">
+              <ControlsBar
+                onFlipBoard={handleFlipBoard}
+                soundOn={soundEnabled}
+                onToggleSound={handleToggleSound}
+                onUndo={handleUndo}
+                isGameOver={gameStatus !== "playing"}
+              />
+            </div>
+          </div>
 
-            <ControlsBar
-              onFlipBoard={() =>
-                setBoardOrientation((prev) =>
-                  prev === "white" ? "black" : "white"
-                )
-              }
-              soundOn={soundOn}
-              onToggleSound={() => setSoundOn((prev) => !prev)}
-              onUndo={handleUndo}
-              isGameOver={gameRef.current.isGameOver()}
-            />
+          <div className="bottom-detected">
+            <DetectedCommandBanner command={detectedCommand} />
           </div>
         </div>
 
+        {/* RIGHT */}
         <div className="right-sidebar">
-          <OpponentCard
-            player={{ ...opponent, time: opponentTime }}
-            isThinking={isAIThinking}
-          />
+          <OpponentCard player={opponent} isThinking={isAIThinking} />
           <PlayerCard
-            player={{ ...player, time: playerTime }}
-            isYourTurn={
-              !isAIThinking &&
-              !gameRef.current.isGameOver() &&
-              gameRef.current.turn() === "w"
-            }
+            player={player}
+            isYourTurn={gameRef.current.turn() === playerColor}
           />
+          <VoiceHistory commands={commandHistory} />
+          <QuickVoiceTips />
           <MoveHistory moves={moveHistory} />
         </div>
       </div>

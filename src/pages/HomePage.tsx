@@ -38,22 +38,25 @@ const HomePage: React.FC = () => {
   const pendingModeRef = useRef<"voice" | "classic" | null>(null);
   const pendingTimeRef = useRef<TimeControl | null>(null);
 
-  // Play welcome message only on first login of the session
+  // Play welcome message once per session on this page
   useEffect(() => {
     if (speechService.isSupportedBrowser()) {
-      // Check if user has already been welcomed in this session
-      const hasBeenWelcomed = sessionStorage.getItem("userWelcomed");
+      // Use a page-specific key so other pages can have their own welcome
+      const hasBeenWelcomed = sessionStorage.getItem("homeWelcomed");
 
       if (!hasBeenWelcomed) {
-        // Mark user as welcomed
-        sessionStorage.setItem("userWelcomed", "true");
+        sessionStorage.setItem("homeWelcomed", "true");
 
-        // Wait a moment for the page to load
         setTimeout(() => {
           playWelcomeMessage();
         }, 1000);
       }
     }
+
+    // Cleanup: stop any ongoing speech when leaving HomePage
+    return () => {
+      speechService.stop();
+    };
   }, []);
 
   const playWelcomeMessage = async () => {
@@ -120,7 +123,7 @@ const HomePage: React.FC = () => {
   const handleVoiceCommand = async (command: any) => {
     console.log("Processing command:", command);
 
-    // Provide audio feedback
+    // Provide audio feedback (this will also cancel any existing speech)
     await provideFeedback(command.intent);
 
     // Handle specific time control selections
@@ -243,9 +246,13 @@ const HomePage: React.FC = () => {
 
       case "STOP_LISTENING":
         voiceCommandService.stopListening();
+        // Also stop any ongoing speech when user says "stop listening"
+        speechService.stop();
         break;
 
       case "SHOW_COMMANDS":
+        // stop current explanation and show commands
+        speechService.stop();
         setCommandsModalOpen(true);
         break;
 
@@ -373,7 +380,6 @@ const HomePage: React.FC = () => {
     setSelectedTime(time);
     pendingTimeRef.current = time;
 
-    // Ensure we have a mode selected
     const mode = selectedMode || pendingModeRef.current;
     if (!mode) {
       console.warn("No mode selected, defaulting to voice");
@@ -381,7 +387,6 @@ const HomePage: React.FC = () => {
       pendingModeRef.current = "voice";
     }
 
-    // Close time modal and open versus modal
     setTimeModalOpen(false);
     setTimeout(() => {
       setVersusModalOpen(true);
@@ -397,7 +402,9 @@ const HomePage: React.FC = () => {
 
     console.log("Navigation params:", { mode, time, choice });
 
-    // Store game config in sessionStorage FIRST
+    // Stop any current speech before navigating to game page
+    speechService.stop();
+
     const gameConfig = {
       mode: mode || "voice",
       time: time,
@@ -406,10 +413,8 @@ const HomePage: React.FC = () => {
     sessionStorage.setItem("gameConfig", JSON.stringify(gameConfig));
     console.log("✅ Game config saved to sessionStorage:", gameConfig);
 
-    // Close versus modal
     setVersusModalOpen(false);
 
-    // Navigate immediately (no setTimeout)
     if (mode === "voice" || !mode) {
       console.log("🎯 Navigating to /voicechess...");
       navigate("/voicechess");
@@ -418,7 +423,6 @@ const HomePage: React.FC = () => {
       navigate("/classicchess");
     }
 
-    // Reset states immediately (navigation will happen)
     setSelectedMode(null);
     setSelectedTime(null);
     pendingModeRef.current = null;
@@ -427,6 +431,9 @@ const HomePage: React.FC = () => {
 
   // Handle go back
   const handleGoBack = () => {
+    // Optional: stop speech when backing out of modals
+    speechService.stop();
+
     if (versusModalOpen) {
       setVersusModalOpen(false);
       setTimeout(() => {
@@ -441,14 +448,18 @@ const HomePage: React.FC = () => {
 
   // Click handlers (for manual interaction)
   const onStartVoice = () => {
+    // Stop any current speech (welcome, time info, etc.)
+    speechService.stop();
     handleStartVoiceChess();
   };
 
   const onStartClassic = () => {
+    speechService.stop();
     handleStartClassicChess();
   };
 
   const handleTimeModalPick = (tc: TimeControl) => {
+    speechService.stop(); // stop any speech when choosing time manually
     handleTimeSelection(tc);
   };
 
@@ -461,6 +472,7 @@ const HomePage: React.FC = () => {
       <div>
         <Navbar rating={0} streak={0} />
       </div>
+
       {/* Voice Status Indicator */}
       {isVoiceActive && (
         <div className="voice-status-bar">
@@ -489,7 +501,10 @@ const HomePage: React.FC = () => {
             {/* Voice Commands Button */}
             <button
               className="voice-toggle-btn"
-              onClick={() => setCommandsModalOpen(true)}
+              onClick={() => {
+                speechService.stop(); // stop any ongoing speech
+                setCommandsModalOpen(true);
+              }}
               style={{
                 background: "transparent",
                 border: "1px solid rgba(255, 215, 0, 0.3)",
@@ -505,6 +520,8 @@ const HomePage: React.FC = () => {
               onClick={() => {
                 if (isVoiceActive) {
                   voiceCommandService.stopListening();
+                  // Also stop any ongoing speech when turning voice "off"
+                  speechService.stop();
                 } else {
                   startVoiceListening();
                 }
@@ -610,6 +627,7 @@ const HomePage: React.FC = () => {
       <TimeControlModal
         open={timeModalOpen}
         onClose={() => {
+          speechService.stop(); // stop any current speech when closing time modal
           setTimeModalOpen(false);
           setSelectedMode(null);
           pendingModeRef.current = null;
@@ -621,6 +639,7 @@ const HomePage: React.FC = () => {
       <VersusModal
         open={versusModalOpen}
         onClose={() => {
+          speechService.stop();
           setVersusModalOpen(false);
         }}
         onPick={handleVersusModalPick}
@@ -631,7 +650,10 @@ const HomePage: React.FC = () => {
       {/* Voice Commands Modal */}
       <VoiceCommandsModal
         open={commandsModalOpen}
-        onClose={() => setCommandsModalOpen(false)}
+        onClose={() => {
+          speechService.stop();
+          setCommandsModalOpen(false);
+        }}
       />
     </div>
   );

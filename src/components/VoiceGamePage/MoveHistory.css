@@ -1,22 +1,18 @@
 .move-history {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-    padding: 16px;
-    max-height: 200px;
+    background: radial-gradient(circle at top left, #1e1308 0, #080606 45%, #040404 100%);
+    border-radius: 16px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    color: #fdf9e5;
+    max-height: 220px;
     overflow-y: auto;
 }
 
-.section-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 12px;
-    color: #ddd;
+.move-history .section-header {
+    margin-bottom: 10px;
 }
 
+/* Move rows */
 .moves-list {
     display: flex;
     flex-direction: column;
@@ -24,36 +20,32 @@
 }
 
 .move-row {
-    display: flex;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: 30px 1fr 1fr;
+    gap: 6px;
     font-size: 13px;
-    padding: 6px 8px;
-    border-radius: 6px;
-    transition: background 0.2s;
-}
-
-.move-row:hover {
-    background: #0f0f0f;
+    padding: 4px 6px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.5);
 }
 
 .move-number {
-    color: #666;
-    font-weight: 600;
-    min-width: 24px;
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .move-notation {
-    color: #fff;
-    font-family: 'Courier New', monospace;
-    min-width: 50px;
+    font-family: "SF Mono", "Roboto Mono", Menlo, Monaco, Consolas, "Courier New",
+        monospace;
+    color: #ffffff;
 }
 
+/* Scrollbar */
 .move-history::-webkit-scrollbar {
     width: 6px;
 }
 
 .move-history::-webkit-scrollbar-track {
-    background: #0f0f0f;
+    background: #080808;
     border-radius: 3px;
 }
 

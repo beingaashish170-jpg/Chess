@@ -1,31 +1,32 @@
+/* Outer wrapper used in VoiceGamePage */
 .chessboard-wrapper {
     display: flex;
     justify-content: center;
     align-items: center;
     width: 100%;
-    padding: 16px;
-    background: #1a1a1a;
-    border-radius: 8px;
+    padding: 6px;
+    background: linear-gradient(145deg, #261302, #110a02);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    box-shadow:
+        inset 0 0 0 1px rgba(0, 0, 0, 0.8),
+        0 18px 35px rgba(0, 0, 0, 0.9),
+        0 0 16px rgba(255, 215, 0, 0.18);
 }
 
-.chessboard-wrapper>div {
-    display: flex;
-    justify-content: center;
-}
-
-/* Ensure pieces are not too large and board is responsive */
+/* Let react-chessboard decide the height via boardWidth prop.
+   We only cap the max width so it stays nice and centered. */
 .chessboard-wrapper .react-chessboard {
     width: 100%;
-    max-width: 600px;
-    aspect-ratio: 1;
+    max-width: 520px;
 }
 
-/* Smooth piece animations */
+/* Optional: smooth piece movement */
 .chessboard-wrapper .react-chessboard [data-piece] {
-    transition: transform 0.3s ease-in-out;
+    transition: transform 0.25s ease-in-out;
 }
 
-/* Highlight animations */
+/* Optional: smooth highlight transitions */
 .chessboard-wrapper .react-chessboard [data-square] {
-    transition: background 0.2s ease;
+    transition: background 0.18s ease-in-out;
 }

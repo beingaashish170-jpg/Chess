@@ -6,13 +6,15 @@ import type { Api } from "chessground/api";
 import type * as CG from "chessground/types";
 import type { Square, Move } from "chess.js";
 
-// Props accepted by Chessboard to satisfy usages across the app
+import "./Chessboard.css";
+
+// Props accepted by Chessboard
 interface ChessboardProps {
   gameFen?: string;
   onMove?: (from: string, to: string, promotion?: string) => void;
   boardOrientation?: "white" | "black";
   disabled?: boolean;
-  aiDepth?: number; // optional; accepted to satisfy SimpleTestPage usage
+  aiDepth?: number; // optional; accepted to satisfy other usages
 }
 
 export default function Chessboard({
@@ -39,15 +41,28 @@ export default function Chessboard({
         check: true,
       },
 
-      animation: { enabled: true },
+      animation: {
+        enabled: true,
+        duration: 250,
+      },
 
       movable: {
         free: false,
         color: movableColor,
         dests: computeDests(gameRef.current),
+        showDests: true,
+      },
+
+      premovable: {
+        enabled: false,
       },
 
       draggable: {
+        enabled: !disabled,
+        showGhost: true,
+      },
+
+      selectable: {
         enabled: !disabled,
       },
 
@@ -61,6 +76,8 @@ export default function Chessboard({
           apiRef.current?.set({
             fen: game.fen(),
             movable: { dests: computeDests(game) },
+            turnColor: game.turn() === "w" ? "white" : "black",
+            check: game.isCheck(),
           });
 
           onMove?.(from, to, "q");
@@ -75,6 +92,7 @@ export default function Chessboard({
       orientation: boardOrientation,
       movable: { dests: computeDests(gameRef.current) },
       draggable: { enabled: !disabled },
+      turnColor: gameRef.current.turn() === "w" ? "white" : "black",
     } as any);
 
     return () => apiRef.current?.destroy();
@@ -90,26 +108,28 @@ export default function Chessboard({
       apiRef.current.set({
         fen: g.fen(),
         orientation: boardOrientation,
-        movable: { dests: computeDests(g) },
+        movable: {
+          dests: computeDests(g),
+          color: disabled ? undefined : g.turn() === "w" ? "white" : "black",
+        },
         draggable: { enabled: !disabled },
+        turnColor: g.turn() === "w" ? "white" : "black",
+        check: g.isCheck(),
       } as any);
     } else {
       apiRef.current.set({
         orientation: boardOrientation,
         draggable: { enabled: !disabled },
+        movable: {
+          color: disabled ? undefined : "both",
+        },
       } as any);
     }
   }, [gameFen, boardOrientation, disabled]);
 
   return (
-    <div
-      style={{
-        width: "500px",
-        margin: "auto",
-        padding: "20px",
-      }}
-    >
-      <div ref={boardRef} style={{ width: "500px", height: "500px" }}></div>
+    <div className="chessboard-wrapper">
+      <div ref={boardRef} className="chessboard-container"></div>
     </div>
   );
 }

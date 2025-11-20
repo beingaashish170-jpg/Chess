@@ -1,208 +1,219 @@
 * {
     box-sizing: border-box;
-    margin: 0;
-    padding: 0;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-    background: #1a1a1a;
-    color: #fff;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+    background: radial-gradient(circle at top, #262626 0, #050505 45%, #020202 100%);
+    color: #f9f9f9;
 }
 
+/* Root container */
 .voice-game-page {
     min-height: 100vh;
-    background: #1a1a1a;
+    padding: 16px 32px 40px;
+    background: radial-gradient(circle at top, #262626 0, #050505 45%, #020202 100%);
+}
+
+/* Main layout: board + sidebar */
+.game-layout {
+    max-width: 1320px;
+    margin: 24px auto 0;
     display: flex;
-    flex-direction: column;
+    gap: 24px;
 }
 
-.game-title-bar {
-    background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
-    padding: 16px 40px;
-    border-bottom: 1px solid #2d2d2d;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.game-title {
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #ffd700;
-    margin: 0;
-    letter-spacing: 0.5px;
-}
-
-.game-subtitle {
-    font-size: 0.9rem;
-    color: #999;
-    margin: 0;
-    font-weight: 400;
-}
-
-.main-content {
-    display: flex;
-    gap: 16px;
-    padding: 16px 24px;
-    flex: 1;
-}
-
+/* Left: voice bar + board + bottom banner */
 .left-section {
+    flex: 1.6;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    flex: 0 0 auto;
-    align-items: center;
+    gap: 18px;
 }
 
-.board-container {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    background: #222;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #2d2d2d;
-    margin: 0 auto;
-    max-width: 700px;
-}
-
-/* Minimize chessboard like chess.com */
-.chessboard-area {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-}
-
-.chessboard-area>div {
-    max-width: 620px !important;
-    width: 100%;
-}
-
+/* Right sidebar: opponent, you, history, tips, moves */
 .right-sidebar {
     flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 16px;
+}
+
+/* Voice mode bar at top */
+.voice-mode-card {
+    background: radial-gradient(circle at top left, #3d2a00 0, #18110a 30%, #050505 100%);
+    border-radius: 18px;
+    padding: 16px 20px 14px;
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    box-shadow: 0 0 22px rgba(255, 215, 0, 0.18);
+    position: relative;
+}
+
+.voice-mode-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.mode-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255, 215, 0, 0.12);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffd700;
+}
+
+.mode-tag {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.voice-mode-subtitle {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+/* Board card */
+.board-card {
+    background: radial-gradient(circle at top, #30200a 0, #15110c 40%, #050505 100%);
+    border-radius: 18px;
+    padding: 14px 16px 18px;
+    border: 1px solid rgba(255, 215, 0, 0.4);
+    box-shadow: 0 0 24px rgba(255, 215, 0, 0.2);
+    display: flex;
+    flex-direction: column;
     gap: 12px;
+}
+
+.board-inner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Chessboard wrapper */
+.chessboard-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 6px;
+    background: linear-gradient(145deg, #261302, #110a02);
+    border-radius: 16px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.9),
+        0 18px 35px rgba(0, 0, 0, 0.9);
+}
+
+.chessboard-wrapper>div {
+    display: flex;
+    justify-content: center;
+}
+
+/* Let the board stay square and responsive */
+.chessboard-wrapper .react-chessboard {
+    width: 100%;
+    max-width: 520px;
+    aspect-ratio: 1;
+}
+
+/* Piece & square transitions */
+.chessboard-wrapper .react-chessboard [data-piece] {
+    transition: transform 0.25s ease-in-out;
+}
+
+.chessboard-wrapper .react-chessboard [data-square] {
+    transition: background 0.18s ease-in-out;
+}
+
+/* Controls below board */
+.controls-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 4px;
+}
+
+/* Bottom detected command banner */
+.bottom-detected {
+    margin-top: 4px;
+}
+
+/* Slight tweak for DetectedCommandBanner alignment */
+.detected-command-banner {
+    max-width: 620px;
+}
+
+/* Make generic panels in sidebar glow slightly */
+.right-sidebar>* {
+    box-shadow: 0 0 16px rgba(0, 0, 0, 0.65);
+}
+
+/* Some generic section header styling (used in MoveHistory, VoiceHistory) */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+/* Scroll tweaks for sidebar widgets */
+.right-sidebar .voice-history,
+.right-sidebar .move-history {
+    max-height: 220px;
     overflow-y: auto;
-    max-height: calc(100vh - 200px);
-    padding-right: 4px;
 }
 
-.right-sidebar::-webkit-scrollbar {
-    width: 6px;
-}
-
-.right-sidebar::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.right-sidebar::-webkit-scrollbar-thumb {
-    background: #3d3d3d;
-    border-radius: 3px;
-}
-
-.right-sidebar::-webkit-scrollbar-thumb:hover {
-    background: #4d4d4d;
-}
-
-/* Responsive design */
-@media (max-width: 1400px) {
-    .main-content {
-        gap: 12px;
-        padding: 12px 16px;
-    }
-
-    .game-title-bar {
-        padding: 12px 16px;
-    }
-
-    .board-container {
-        padding: 10px;
-    }
-
-    .right-sidebar {
-        flex: 0 0 280px;
-    }
-}
-
+/* Responsive adjustments */
 @media (max-width: 1024px) {
-    .main-content {
+    .game-layout {
         flex-direction: column;
-        gap: 16px;
-    }
-
-    .left-section {
-        gap: 12px;
     }
 
     .right-sidebar {
-        flex: 1;
-        max-height: 400px;
+        flex-direction: row;
+        flex-wrap: wrap;
     }
 
-    .chessboard-area>div {
-        max-width: 500px !important;
+    .right-sidebar>* {
+        flex: 1 1 260px;
+    }
+
+    .board-card {
+        padding: 12px;
     }
 }
 
 @media (max-width: 768px) {
-    .main-content {
-        flex-direction: column;
-        padding: 8px 12px;
-        gap: 12px;
+    .voice-game-page {
+        padding: 12px 12px 24px;
     }
 
-    .game-title-bar {
-        padding: 8px 12px;
+    .game-layout {
+        margin-top: 16px;
     }
 
-    .board-container {
-        padding: 8px;
-    }
-
-    .left-section {
-        gap: 8px;
-    }
-
-    .right-sidebar {
-        flex: 1;
-        max-height: 350px;
-        gap: 10px;
-    }
-
-    .chessboard-area>div {
-        max-width: 100% !important;
+    .voice-mode-card,
+    .board-card {
+        border-radius: 14px;
     }
 }
 
 @media (max-width: 480px) {
-    .main-content {
-        padding: 6px 8px;
-        gap: 8px;
-    }
-
-    .game-title {
-        font-size: 1.1rem;
-    }
-
-    .game-subtitle {
-        font-size: 0.85rem;
-    }
-
-    .game-title-bar {
-        padding: 6px 8px;
-    }
-
-    .board-container {
-        padding: 6px;
-        gap: 8px;
-    }
-
     .right-sidebar {
-        gap: 8px;
-        max-height: 300px;
+        flex-direction: column;
+    }
+
+    .chessboard-wrapper .react-chessboard {
+        max-width: 360px;
     }
 }
