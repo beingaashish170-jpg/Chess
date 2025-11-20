@@ -29,7 +29,6 @@ interface StockfishResponse {
 class StockfishService {
   private worker: Worker | null = null;
   private isReady = false;
-  private movePromise: Promise<StockfishMove | null> | null = null;
   private moveResolve: ((move: StockfishMove | null) => void) | null = null;
 
   /**
