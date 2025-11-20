@@ -45,4 +45,33 @@
     font-size: 20px;
     font-weight: 700;
     color: #FECF03;
+    transition: all 0.3s ease;
+}
+
+.player-card.low-time {
+    border-color: #ff4444;
+    background: linear-gradient(135deg, #3a1a1a 0%, #2a1a1a 100%);
+    box-shadow: 0 0 12px rgba(255, 68, 68, 0.3);
+}
+
+.player-time.critical {
+    color: #ff4444;
+    animation: timeCritical 0.6s ease-in-out infinite;
+}
+
+@keyframes timeCritical {
+    0%, 100% {
+        color: #ff4444;
+        text-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+    }
+    50% {
+        color: #ff8888;
+        text-shadow: 0 0 12px rgba(255, 68, 68, 0.8);
+    }
+}
+
+.player-status {
+    font-size: 12px;
+    color: #aaa;
+    margin-top: 4px;
 }

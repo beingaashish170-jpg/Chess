@@ -2,52 +2,53 @@ import React from "react";
 import "./VoiceStatusBar.css";
 
 interface VoiceStatusBarProps {
-  isActive: boolean;
-  onToggle: () => void;
-  progress: number;
-  isAIThinking?: boolean; // NEW (optional)
+  transcript: string;
+  detectedCommand: string;
 }
 
 const VoiceStatusBar: React.FC<VoiceStatusBarProps> = ({
-  isActive,
-  onToggle,
-  progress,
-  isAIThinking = false, // default
+  transcript,
+  detectedCommand,
 }) => {
-  // Decide what text to show
-  const mainText = isAIThinking
-    ? "AI is thinking..."
-    : isActive
-    ? "Voice Mode Active"
-    : "Voice Mode Paused";
-
-  const instructionText = isAIThinking
-    ? "Please wait for AI move…"
-    : 'Speak clearly: "Knight to F3" or click pieces';
-
   return (
     <div className="voice-status-bar">
       <div className="voice-status-content">
-        <div className="voice-indicator">
-          <span className="mic-icon">🎤</span>
-          <span className="voice-text">{mainText}</span>
-          <span className="sparkle">✨</span>
+        <div className="voice-icon">
+          <span className="voice-dot pulsing">🎤</span>
+          <span className="voice-label">Voice Mode Active</span>
         </div>
-        <div className="voice-instruction">{instructionText}</div>
-        <div className="progress-bar">
-          <div
-            className="progress-fill"
-            style={{ width: `${progress}%` }}
-          ></div>
+
+        <div className="voice-info">
+          {detectedCommand && (
+            <div className="detected-command">
+              <span className="command-label">Detected:</span>
+              <span className="command-text">{detectedCommand}</span>
+              <span className="command-status">✓ Executed</span>
+            </div>
+          )}
+
+          {transcript && !detectedCommand && (
+            <div className="interim-transcript">
+              <span className="transcript-label">Listening:</span>
+              <span className="transcript-text">{transcript}</span>
+            </div>
+          )}
+
+          {!transcript && !detectedCommand && (
+            <div className="listening-prompt">
+              <span>Say a move like "e4", "knight to f3", or "castle kingside"</span>
+            </div>
+          )}
+        </div>
+
+        <div className="voice-indicator">
+          <div className="sound-wave">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
         </div>
       </div>
-      <button
-        className="pause-voice-btn"
-        onClick={onToggle}
-        disabled={isAIThinking} // optional: lock while AI is thinking
-      >
-        🔇 {isActive ? "Pause Voice" : "Resume Voice"}
-      </button>
     </div>
   );
 };
